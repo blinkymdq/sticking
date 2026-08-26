@@ -606,14 +606,25 @@ function historyRow(h) {
 function normMarca(s) { return (s || "").trim().toLowerCase(); }
 function displayOverride(key) { var info = state.marcas[key]; return info && info.display ? info.display : null; }
 function logoFor(key) { var info = state.marcas[key]; if (info && info.logo) return info.logo; return LOGO_DEFAULTS[key] || null; }
+function groupKeyFor(m) {
+  var mk = normMarca(m.marca);
+  if (mk) return { key: mk, display: (m.marca || "").trim(), brand: true };
+  var cat = (m.categoria || "").trim();
+  if (cat) return { key: "cat:" + cat.toLowerCase(), display: cat, brand: false };
+  return { key: "", display: "Sin marca", brand: false };
+}
 function groupByMarca(list) {
   var map = {}, order = [];
   list.forEach(function (m) {
-    var key = normMarca(m.marca);
-    if (!map[key]) { map[key] = { key: key, display: (m.marca || "").trim() || "Sin marca", items: [] }; order.push(key); }
-    map[key].items.push(m);
+    var gk = groupKeyFor(m);
+    if (!map[gk.key]) { map[gk.key] = { key: gk.key, display: gk.display, brand: gk.brand, items: [] }; order.push(gk.key); }
+    map[gk.key].items.push(m);
   });
-  order.forEach(function (k) { var d = displayOverride(k); if (d) map[k].display = d; map[k].logo = logoFor(k); });
+  order.forEach(function (k) {
+    var g = map[k];
+    if (g.brand) { var d = displayOverride(k); if (d) g.display = d; g.logo = logoFor(k); }
+    else g.logo = null;
+  });
   order.sort(function (a, b) {
     if (a === "" && b !== "") return 1;
     if (b === "" && a !== "") return -1;
