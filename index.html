@@ -326,6 +326,8 @@ const LOGO_DEFAULTS = {"avery": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQAB
 LOGO_DEFAULTS["airprint"] = LOGO_DEFAULTS["airprint"] || LOGO_DEFAULTS["aiprint"];
 const DEFAULT_BRANDS = ["Avery Dennison", "Airprint", "NAR", "Generico", "Mimaki", "Roland"];
 const DEFAULT_CATEGORIES = ["Vinilo", "Microperforado", "Lona", "DTF", "Tintas"];
+const BRAND_ORDER = ["airprint", "avery dennison", "nar", "especiales", "mimaki", "roland", "dtf", "generico"];
+function brandRank(key) { var i = BRAND_ORDER.indexOf(key); return i < 0 ? 900 : i; }
 const LOW = 3;
 
 let state = { materials: [], history: [], marcas: {} };
@@ -648,6 +650,9 @@ function groupByMarca(list) {
   order.sort(function (a, b) {
     if (a === "" && b !== "") return 1;
     if (b === "" && a !== "") return -1;
+    var ra = map[a].brand ? brandRank(a) : 1000;
+    var rb = map[b].brand ? brandRank(b) : 1000;
+    if (ra !== rb) return ra - rb;
     return map[a].display.localeCompare(map[b].display, "es", { sensitivity: "base" });
   });
   return order.map(function (k) { return map[k]; });
@@ -668,7 +673,7 @@ function allBrandKeys() {
   DEFAULT_BRANDS.forEach(function (d) { add(normMarca(d), d); });
   Object.keys(state.marcas).forEach(function (k) { add(k, state.marcas[k].display || k); });
   arr.forEach(function (b) { var d = displayOverride(b.key); if (d) b.display = d; b.logo = logoFor(b.key); });
-  arr.sort(function (a, b) { return a.display.localeCompare(b.display, "es", { sensitivity: "base" }); });
+  arr.sort(function (a, b) { var r = brandRank(a.key) - brandRank(b.key); return r !== 0 ? r : a.display.localeCompare(b.display, "es", { sensitivity: "base" }); });
   return arr;
 }
 function brandChips(catFilter) {
@@ -679,7 +684,7 @@ function brandChips(catFilter) {
     if (k && !seen[k]) { seen[k] = 1; arr.push({ key: k, display: (m.marca || "").trim() }); }
   });
   arr.forEach(function (b) { var d = displayOverride(b.key); if (d) b.display = d; b.logo = logoFor(b.key); });
-  arr.sort(function (a, b) { return a.display.localeCompare(b.display, "es", { sensitivity: "base" }); });
+  arr.sort(function (a, b) { var r = brandRank(a.key) - brandRank(b.key); return r !== 0 ? r : a.display.localeCompare(b.display, "es", { sensitivity: "base" }); });
   return arr;
 }
 function facetValues(field, f) {
