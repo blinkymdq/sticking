@@ -252,6 +252,7 @@
   .chip-logo{width:18px;height:18px;border-radius:4px;object-fit:contain;background:#fff;border:1px solid var(--line)}
   .chip-btn.on .chip-logo{border-color:transparent}
   .chips{padding:10px 18px}
+  .chips:last-child{border-bottom:none}
   .chips.facet{background:color-mix(in srgb,var(--surface-2) 45%, transparent)}
   .chip-lbl{align-self:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
     font-weight:700;margin-right:6px;min-width:74px}
@@ -885,7 +886,11 @@ function render() {
         '<div class="search">' + ICON.search + '<input id="search" placeholder="Buscar por nombre, marca, tipo…" value="' + esc(ui.search) + '"></div>' +
         '<button class="btn toggle sm' + (ui.onlyLow ? " on" : "") + '" id="low-filter" type="button"><span class="tdot"></span>Solo stock bajo · ' + lowN + '</button>' +
         '<button class="btn ghost sm" id="marcas-btn" type="button">Logos de marcas</button>' +
-      '</div>' + chipRow + body +
+      '</div>' + chipRow +
+    '</div>' +
+    '<div class="card">' +
+      '<h2>Materiales' + (hasQuery ? '<span class="cnt">' + list.length + (list.length === 1 ? " resultado" : " resultados") + '</span>' : "") + '</h2>' +
+      body +
     '</div>' +
     '<div class="card">' +
       '<h2>Historial de movimientos<span class="cnt">' + state.history.length + (state.history.length === 1 ? " movimiento" : " movimientos") + '</span>' +
