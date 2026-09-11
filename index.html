@@ -251,6 +251,12 @@
   .chip-btn.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
   .chip-logo{width:18px;height:18px;border-radius:4px;object-fit:contain;background:#fff;border:1px solid var(--line)}
   .chip-btn.on .chip-logo{border-color:transparent}
+  .chips{padding:10px 18px}
+  .chips.facet{background:color-mix(in srgb,var(--surface-2) 45%, transparent)}
+  .chip-lbl{align-self:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
+    font-weight:700;margin-right:6px;min-width:74px}
+  .chip-btn.sm2{padding:5px 11px;font-size:12.5px}
+  @media (max-width:640px){ .chip-lbl{min-width:0;flex:1 1 100%;margin:0 0 2px} }
 
   @media (max-width:820px){
     .grid{grid-template-columns:1fr 1fr}
@@ -322,7 +328,7 @@ const DEFAULT_CATEGORIES = ["Vinilo", "Especiales", "Microperforado", "Lona", "D
 const LOW = 3;
 
 let state = { materials: [], history: [], marcas: {} };
-let ui = { search: "", cat: "", editing: null, onlyLow: false, marca: "" };
+let ui = { search: "", cat: "", editing: null, onlyLow: false, marca: "", tipoBase: "", ancho: "" };
 try { ui.search = sessionStorage.getItem("bk-search") || ""; } catch (e) {}
 
 /* ==== utilidades ==== */
@@ -674,6 +680,26 @@ function brandChips() {
   arr.sort(function (a, b) { return a.display.localeCompare(b.display, "es", { sensitivity: "base" }); });
   return arr;
 }
+function facetValues(field, f) {
+  var s = {}, o = [];
+  state.materials.forEach(function (m) {
+    if (f.marca && normMarca(m.marca) !== f.marca) return;
+    if (f.cat && m.categoria !== f.cat) return;
+    if (f.tipoBase && (m.tipoBase || "") !== f.tipoBase) return;
+    var v = (m[field] || "").trim();
+    if (v && !s[v]) { s[v] = 1; o.push(v); }
+  });
+  o.sort(function (a, b) { return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" }); });
+  return o;
+}
+function facetRow(label, field, active, options) {
+  if (!options.length) return "";
+  var btns = '<button class="chip-btn' + (active === "" ? " on" : "") + '" data-facet="' + field + '" data-val="" type="button">Todas</button>' +
+    options.map(function (v) {
+      return '<button class="chip-btn' + (active === v ? " on" : "") + '" data-facet="' + field + '" data-val="' + esc(v) + '" type="button">' + esc(v) + "</button>";
+    }).join("");
+  return '<div class="chips facet"><span class="chip-lbl">' + label + "</span>" + btns + "</div>";
+}
 function fileToLogo(file) {
   return new Promise(function (resolve, reject) {
     var url = URL.createObjectURL(file); var img = new Image();
@@ -741,8 +767,10 @@ function filtered() {
   var q = ui.search.trim().toLowerCase();
   return state.materials.filter(function (m) {
     if (ui.marca && normMarca(m.marca) !== ui.marca) return false;
-    if (ui.onlyLow && m.cantidad > LOW) return false;
     if (ui.cat && m.categoria !== ui.cat) return false;
+    if (ui.tipoBase && (m.tipoBase || "") !== ui.tipoBase) return false;
+    if (ui.ancho && (m.ancho || "") !== ui.ancho) return false;
+    if (ui.onlyLow && m.cantidad > LOW) return false;
     if (!q) return true;
     return [m.nombre, m.marca, m.categoria, m.tipoBase, m.ancho].join(" ").toLowerCase().indexOf(q) >= 0;
   });
@@ -785,14 +813,27 @@ function render() {
   }
   var dataLists = dl("marcas-list", marcaSuggest()) + dl("cats-list", catSuggest()) + dl("bases-list", optsFor("tipoBase")) + dl("anchos-list", optsFor("ancho"));
 
-  var hasQuery = ui.search.trim() !== "" || ui.cat !== "" || ui.onlyLow || ui.marca !== "";
-  var chips = brandChips();
-  var chipRow = chips.length ? '<div class="chips">' +
+  // filtro en cascada: marca -> categoría -> tipo de base -> ancho
+  var catFacet = facetValues("categoria", { marca: ui.marca });
+  if (ui.cat && catFacet.indexOf(ui.cat) < 0) { ui.cat = ""; ui.tipoBase = ""; ui.ancho = ""; }
+  var baseFacet = facetValues("tipoBase", { marca: ui.marca, cat: ui.cat });
+  if (ui.tipoBase && baseFacet.indexOf(ui.tipoBase) < 0) { ui.tipoBase = ""; ui.ancho = ""; }
+  var anchoFacet = facetValues("ancho", { marca: ui.marca, cat: ui.cat, tipoBase: ui.tipoBase });
+  if (ui.ancho && anchoFacet.indexOf(ui.ancho) < 0) { ui.ancho = ""; }
+
+  var hasQuery = ui.search.trim() !== "" || ui.cat !== "" || ui.onlyLow || ui.marca !== "" || ui.tipoBase !== "" || ui.ancho !== "";
+
+  var mChips = brandChips();
+  var marcaRow = mChips.length ? '<div class="chips"><span class="chip-lbl">Marca</span>' +
     '<button class="chip-btn' + (ui.marca === "" ? " on" : "") + '" data-marca="" type="button">Todas</button>' +
-    chips.map(function (b) {
+    mChips.map(function (b) {
       return '<button class="chip-btn' + (ui.marca === b.key ? " on" : "") + '" data-marca="' + esc(b.key) + '" type="button">' +
         (b.logo ? '<img class="chip-logo" src="' + b.logo + '" alt="">' : "") + esc(b.display) + "</button>";
     }).join("") + "</div>" : "";
+  var chipRow = marcaRow +
+    facetRow("Categoría", "cat", ui.cat, catFacet) +
+    facetRow("Tipo de base", "tipoBase", ui.tipoBase, baseFacet) +
+    facetRow("Ancho", "ancho", ui.ancho, anchoFacet);
   var body;
   if (total === 0) {
     body = '<div class="empty">' + ICON.box + '<div class="big">Todavía no hay materiales</div><div>Agregá el primero con el formulario de arriba. Queda guardado en la base al instante.</div></div>';
@@ -838,7 +879,6 @@ function render() {
     '<div class="card">' +
       '<div class="toolbar">' +
         '<div class="search">' + ICON.search + '<input id="search" placeholder="Buscar por nombre, marca, tipo…" value="' + esc(ui.search) + '"></div>' +
-        '<select id="cat-filter">' + catOpts + '</select>' +
         '<button class="btn toggle sm' + (ui.onlyLow ? " on" : "") + '" id="low-filter" type="button"><span class="tdot"></span>Solo stock bajo · ' + lowN + '</button>' +
         '<button class="btn ghost sm" id="marcas-btn" type="button">Logos de marcas</button>' +
       '</div>' + chipRow + body +
@@ -878,8 +918,6 @@ function bind(root) {
     var eln = document.getElementById("search");
     if (eln) { eln.focus(); if (pos != null && eln.setSelectionRange) { try { eln.setSelectionRange(pos, pos); } catch (e) {} } }
   });
-  document.getElementById("cat-filter").addEventListener("change", function (e) { ui.cat = e.target.value; render(); });
-
   function toggleLow() { ui.onlyLow = !ui.onlyLow; render(); }
   var lowBtn = document.getElementById("low-filter");
   if (lowBtn) lowBtn.addEventListener("click", toggleLow);
@@ -894,8 +932,16 @@ function bind(root) {
   if (marcasBtn) marcasBtn.addEventListener("click", openMarcas);
   root.querySelectorAll(".chip-btn").forEach(function (c) {
     c.addEventListener("click", function () {
-      var k = c.getAttribute("data-marca");
-      ui.marca = (ui.marca === k) ? "" : k;
+      if (c.hasAttribute("data-marca")) {
+        var k = c.getAttribute("data-marca");
+        ui.marca = (ui.marca === k) ? "" : k;
+        ui.cat = ""; ui.tipoBase = ""; ui.ancho = "";
+      } else if (c.hasAttribute("data-facet")) {
+        var f = c.getAttribute("data-facet"), v = c.getAttribute("data-val");
+        if (f === "cat") { ui.cat = (ui.cat === v) ? "" : v; ui.tipoBase = ""; ui.ancho = ""; }
+        else if (f === "tipoBase") { ui.tipoBase = (ui.tipoBase === v) ? "" : v; ui.ancho = ""; }
+        else if (f === "ancho") { ui.ancho = (ui.ancho === v) ? "" : v; }
+      }
       render();
     });
   });
