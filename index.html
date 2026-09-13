@@ -328,6 +328,17 @@ const DEFAULT_BRANDS = ["Avery Dennison", "Airprint", "NAR", "Generico", "Mimaki
 const DEFAULT_CATEGORIES = ["Vinilo", "Microperforado", "Lona", "DTF", "Tintas"];
 const BRAND_ORDER = ["airprint", "avery dennison", "nar", "especiales", "mimaki", "roland", "dtf", "generico"];
 function brandRank(key) { var i = BRAND_ORDER.indexOf(key); return i < 0 ? 900 : i; }
+const ESPECIALES_ORDER = [
+  "vinilo mate", "vinilo brillo", "vinilo cristal",
+  "holografico plateado", "holografico dorado",
+  "cromado dorado", "cromado plateado",
+  "holografico puntitos", "holografico broken", "holografico arena",
+  "holografico clear", "holografico clear puntitos", "holografico clear broken",
+  "suncatcher", "fotoluminiscente"
+];
+function normName(s) { return (s || "").trim().toLowerCase().replace(/\s+/g, " "); }
+function especialesRank(nombre) { var i = ESPECIALES_ORDER.indexOf(normName(nombre)); return i < 0 ? 999 : i; }
+function anchoNum(s) { var m = (s || "").match(/[\d.,]+/); return m ? parseFloat(m[0].replace(",", ".")) : Infinity; }
 const LOW = 3;
 
 let state = { materials: [], history: [], marcas: {} };
@@ -445,8 +456,7 @@ function applyAdjust(id, dir, a) {
   var newQ = m.cantidad;
   render();
   if (dir < 0) {
-    if (newQ === 1 && before > 1) openAlert("¡Acabás de abrir el anteúltimo " + unitN(m.categoria, 1) + " de «" + (m.nombre || "este material") + "»! Queda 1.", "warn");
-    else if (newQ === 0 && before > 0) openAlert("¡Usaste el último " + unitN(m.categoria, 1) + " de «" + (m.nombre || "este material") + "»! Stock en 0.", "crit");
+    if (newQ === 0 && before > 0) openAlert("Este es el último " + unitN(m.categoria, 1) + " de «" + (m.nombre || "este material") + "». Ya no queda stock.", "crit");
   }
   run(async function () {
     var r1 = await sb.from("materiales").update({ cantidad: newQ, updated_at: new Date().toISOString() }).eq("id", id); if (r1.error) throw r1.error;
@@ -585,7 +595,7 @@ function actionsCell(m) {
     '<button class="btn icon sm danger" data-act="del" aria-label="Eliminar">Eliminar</button>';
 }
 function rowView(m) {
-  var lvl = m.cantidad === 0 ? "zero" : (m.cantidad === 1 ? "one" : (m.cantidad <= LOW ? "low" : ""));
+  var lvl = m.cantidad === 0 ? "zero" : "";
   return '<tr class="' + lvl + '" data-id="' + m.id + '">' +
     '<td class="name">' + (esc(m.nombre) || '<span class="meta">—</span>') + '</td>' +
     '<td data-label="Marca">' + (esc(m.marca) || '<span class="meta">—</span>') + '</td>' +
@@ -593,7 +603,7 @@ function rowView(m) {
     '<td data-label="Tipo de base">' + (esc(m.tipoBase) || '<span class="meta">—</span>') + '</td>' +
     '<td class="mono" data-label="Ancho">' + (esc(m.ancho) || '<span class="meta">—</span>') + '</td>' +
     '<td class="num" data-label="Cantidad"><span class="qtybadge mono">' + m.cantidad + '</span>' +
-      (m.cantidad === 1 ? '<span class="qtag">1 ' + unitN(m.categoria, 1) + '</span>' : (m.cantidad === 0 ? '<span class="qtag">agotado</span>' : '')) + '</td>' +
+      (m.cantidad === 0 ? '<span class="qtag">agotado</span>' : '') + '</td>' +
     '<td class="actions">' + actionsCell(m) + '</td></tr>';
 }
 function rowEdit(m) {
@@ -646,6 +656,16 @@ function groupByMarca(list) {
     var g = map[k];
     if (g.brand) { var d = displayOverride(k); if (d) g.display = d; g.logo = logoFor(k); }
     else g.logo = null;
+    g.items.sort(function (a, b) {
+      if (g.key === "especiales") {
+        var ra = especialesRank(a.nombre), rb = especialesRank(b.nombre);
+        if (ra !== rb) return ra - rb;
+        return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
+      }
+      var na = anchoNum(a.ancho), nb = anchoNum(b.ancho);
+      if (na !== nb) return na - nb;
+      return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
+    });
   });
   order.sort(function (a, b) {
     if (a === "" && b !== "") return 1;
@@ -906,7 +926,7 @@ function render() {
           (state.history.length > 150 ? '<div class="hist-more">Mostrando los últimos 150.</div>' : "")
         : '<div class="empty"><div>Todavía no hay movimientos. Cuando sumes material o abras un rollo, queda registrado acá con fecha y hora.</div></div>') +
     '</div>' +
-    '<div class="foot">Guardado en Supabase y sincronizado en vivo entre todos los que abran este link.<br>Stock bajo se marca al llegar a ' + LOW + ' o menos.</div>' +
+    '<div class="foot">Guardado en Supabase y sincronizado en vivo entre todos los que abran este link.<br>Cuando se abre el último rollo (llega a 0), el material se marca en rojo como agotado.</div>' +
   '</div>';
 
   var root = document.getElementById("root");
